@@ -1,0 +1,12 @@
+name: "debug"
+shortDesc: "Debug remote container"
+longDesc: "Debug remote container"
+example: "kubectl plugin debug -n <namespace> <pod-name> -c <container-name>"
+command: "sh debug.sh"
+flags:
+  - name: "namespace"
+    shorthand: "n"
+    desc: "namespace"
+  - name: "container"
+    shorthand: "c"
+    desc: "container name"
