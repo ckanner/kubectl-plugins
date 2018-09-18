@@ -1,8 +1,9 @@
 #!/usr/bin/bash
 
-# ./ssh.sh {POD} {CMD}
+# ./debug.sh {POD} {CMD} ${IMAGE}
 POD="${1}"
 CMD="${2:-bash}"
+IMAGE="${3:-ubuntu}"
 # runtime attributes
 KUBECTL="${KUBECTL_PLUGINS_CALLER}"
 NAMESPACE="${KUBECTL_PLUGINS_LOCAL_FLAG_NAMESPACE:-$KUBECTL_PLUGINS_CURRENT_NAMESPACE}"
@@ -16,73 +17,41 @@ else
   CONTAINER_ID=$( $KUBECTL --namespace ${NAMESPACE} get pod ${POD} -o go-template='{{ (index .status.containerStatuses 0).containerID }}' )
 fi
 CONTAINER_ID=${CONTAINER_ID#*//}
-
-APP_NAME="debug$(date +%s)"
-read -r -d '' DAEMON_SET_JSON <<EOF
+read -r -d '' OVERRIDES <<EOF
 {
-	"apiVersion": "apps/v1",
-	"kind": "DaemonSet",
-	"metadata": {
-		"name": "${APP_NAME}",
-		"namespace": "${NAMESPACE}",
-		"labels": {
-			"app": "${APP_NAME}"
-		}
-	},
-	"spec": {
-        "selector": {
-            "matchLabels": {
-                "name": "${APP_NAME}"
+    "apiVersion": "v1",
+    "spec": {
+        "containers": [
+            {
+                "image": "docker",
+                "name": "debuger",
+                "stdin": true,
+                "stdinOnce": true,
+                "tty": true,
+                "restartPolicy": "Never",
+                "args": ["run", "-it", "--net=container:${CONTAINER_ID}", "--pid=container:${CONTAINER_ID}", "--ipc=container:${CONTAINER_ID}", "${IMAGE}", "${CMD}"],
+                "volumeMounts": [
+                    {
+                        "mountPath": "/var/run/docker.sock",
+                        "name": "docker"
+                    }
+                ]
             }
+        ],
+        "nodeSelector": {
+          "kubernetes.io/hostname": "${NODE_NAME}"
         },
-		"template": {
-			"metadata": {
-				"labels": {
-					"name": "${APP_NAME}"
-				}
-			},
-			"spec": {
-				"nodeSelector": {
-					"kubernetes.io/hostname": "${NODE_NAME}"
-				},
-				"containers": [
-					{
-						"name": "docker",
-						"image": "docker",
-						"stdin": true,
-						"stdinOnce": true,
-						"tty": true,
-                        "securityContext": {
-                            "privileged": true
-                        },
-						"command": ["docker"],
-						"args": [
-							"exec",
-							"-it",
-							"${CONTAINER_ID}",
-							"${CMD}"
-						],
-						"volumeMounts": [
-							{
-								"name": "docker",
-								"mountPath": "/var/run/docker.sock"
-							}
-						]
-					}
-				],
-				"volumes": [
-					{
-						"name": "docker",
-						"hostPath": {
-							"type": "File",
-							"path": "/var/run/docker.sock"
-						}
-					}
-				]
-			}
-		}
-	}
+        "volumes": [
+            {
+                "name": "docker",
+                "hostPath": {
+                    "path": "/var/run/docker.sock",
+                    "type": "File"
+                }
+            }
+        ]
+    }
 }
 EOF
 
-echo ${DAEMON_SET_JSON} | $KUBECTL create -f -
+eval ${KUBECTL} --namespace ${NAMESPACE} run -it --rm --restart=Never --image=docker --overrides="'${OVERRIDES}'" docker
