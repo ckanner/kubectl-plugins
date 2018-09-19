@@ -17,41 +17,6 @@ else
   CONTAINER_ID=$( $KUBECTL --namespace ${NAMESPACE} get pod ${POD} -o go-template='{{ (index .status.containerStatuses 0).containerID }}' )
 fi
 CONTAINER_ID=${CONTAINER_ID#*//}
-read -r -d '' OVERRIDES <<EOF
-{
-    "apiVersion": "v1",
-    "spec": {
-        "containers": [
-            {
-                "image": "docker",
-                "name": "debuger",
-                "stdin": true,
-                "stdinOnce": true,
-                "tty": true,
-                "restartPolicy": "Never",
-                "args": ["run", "-it", "--net=container:${CONTAINER_ID}", "--pid=container:${CONTAINER_ID}", "--ipc=container:${CONTAINER_ID}", "${IMAGE}", "${CMD}"],
-                "volumeMounts": [
-                    {
-                        "mountPath": "/var/run/docker.sock",
-                        "name": "docker"
-                    }
-                ]
-            }
-        ],
-        "nodeSelector": {
-          "kubernetes.io/hostname": "${NODE_NAME}"
-        },
-        "volumes": [
-            {
-                "name": "docker",
-                "hostPath": {
-                    "path": "/var/run/docker.sock",
-                    "type": "File"
-                }
-            }
-        ]
-    }
-}
-EOF
 
-eval ${KUBECTL} --namespace ${NAMESPACE} run -it --rm --restart=Never --image=docker --overrides="'${OVERRIDES}'" docker
+go run client.sh -container_id ${CONTAINER_ID} -node_ip ${NODE_NAME} -cmd ${CMD}
+
