@@ -44,6 +44,9 @@ func handleConn(conn net.Conn)  {
         conn.Write([]byte("Fail\n"))
         log.Printf("create debug container fail: %s", err)
         return
+    } else {
+        // send ok resp
+        conn.Write([]byte("OK\n"))
     }
     defer cli.ContainerRemove(context.Background(), debugContainerId, types.ContainerRemoveOptions{RemoveLinks:true, RemoveVolumes:true, Force:true})
     closeCh := make(chan struct{})
