@@ -15,6 +15,7 @@ import (
 
 const DebugImage = "ubuntu:16.04"
 
+// docker run -it --net=container:ID --ipc=container:ID --pid=container:ID image cmd
 func handleConn(conn net.Conn)  {
     defer conn.Close()
     // read a line: containerId,cmd
